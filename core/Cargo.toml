@@ -1,0 +1,13 @@
+[package]
+name = "crab-worm-core"
+authors = ["Mateus Batichotti <matebatichotti@gmail.com>", "Arthur Machado <@gmail.com>", "Isabelly Camilly <@gmail.com>"]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+readme = "README.md"
+description = "The Crab wORM. A Rust Object Relational Mapper."
+
+[dependencies]
+inventory = "0.3"
+syn = "3"
+quote = "1"
