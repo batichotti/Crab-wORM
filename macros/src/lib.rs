@@ -1,6 +1,7 @@
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, Data, DeriveInput, Fields};
+use crab_worm_core::{meta::{FieldMetadata, StructMetadata}};
 
 #[proc_macro_derive(crab_worm)]
 pub fn crab_worm_derive(item: TokenStream) -> TokenStream {
@@ -11,12 +12,12 @@ pub fn crab_worm_derive(item: TokenStream) -> TokenStream {
     let extracted_fields = match &ast.data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(fields) => &fields.named,
-            _ => panic!("Crab Worm only supports named fields"),
+            _ => panic!("Crab-Worm only supports named fields"),
         },
-        _ => panic!("Crab Worm only supports structs"),
+        _ => panic!("Crab-Worm only supports structs"),
     };
 
-    let fields: Vec<(String, String, String)> = extracted_fields
+    let fields: Vec<(String, String)> = extracted_fields
         .iter()
         .map(|field| {
             let name = field.ident.as_ref().unwrap().to_string();
@@ -24,20 +25,19 @@ pub fn crab_worm_derive(item: TokenStream) -> TokenStream {
             let ty = &field.ty;
             let ty = quote!(#ty).to_string();
 
-            let vis = &field.vis;
-            let vis = quote!(#vis).to_string();
-
-            (name, ty, vis)
+            (name, ty)
         })
         .collect();
 
+    let florida : Field;
+
     let fields = fields
         .iter()
-        .map(|(name, ty, vis)| quote! { (#name, #ty, #vis) });
+        .map(|(name, ty)| quote! { (#name, #ty) });
 
     let expanded = quote! {
         impl #struct_name {
-            pub const CRAB_WORM_FIELDS: &'static [(&'static str, &'static str, &'static str)] = &[
+            pub const CRAB_WORM_FIELDS: &'static [(&'static str, &'static str)] = &[
                 #(#fields),*
             ];
         }

@@ -13,3 +13,4 @@ proc-macro = true
 [dependencies]
 syn = "3"
 quote = "1"
+crab-worm-core = { path = "../core" }

@@ -6,6 +6,7 @@ version = 4
 name = "crab-worm"
 version = "0.1.0"
 dependencies = [
+ "crab-worm-core",
  "crab-worm-macros",
 ]
 
@@ -22,6 +23,7 @@ dependencies = [
 name = "crab-worm-macros"
 version = "0.1.0"
 dependencies = [
+ "crab-worm-core",
  "quote",
  "syn",
 ]
