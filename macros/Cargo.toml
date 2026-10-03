@@ -13,4 +13,5 @@ proc-macro = true
 [dependencies]
 syn = "3"
 quote = "1"
+inventory = "0.3"
 crab-worm-core = { path = "../core" }

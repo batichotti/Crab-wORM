@@ -1,4 +1,4 @@
-use crab_worm_macros::crab_worm;
+use crab_worm::crab_worm;
 
 #[derive(crab_worm)]
 pub struct Crab {
@@ -14,6 +14,21 @@ pub struct Crab {
 	pub is_alive: bool,
 }
 
+#[derive(crab_worm)]
+pub struct Nihil {
+}
+
+#[derive(crab_worm)]
+pub struct User {
+	pub id: u32,
+	pub name: String,
+	pub email: String,
+	pub age: u8,
+	pub is_active: bool,
+}
+
 fn main() {
-	println!("{:#?}", Crab::CRAB_WORM_FIELDS);
+	for metadata in crab_worm_core::inventory::iter::<crab_worm_core::meta::StructMetadata> {
+		println!("{metadata:?}");
+	}
 }
