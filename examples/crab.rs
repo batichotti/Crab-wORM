@@ -47,5 +47,5 @@ fn main() {
 		println!();
 	}
 
-	println!("{}", crab_worm_core::meta::generate_sql());
+	crab_worm_core::parasitize();
 }
