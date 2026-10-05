@@ -14,13 +14,13 @@ impl FieldMetadata {
     }
 }
 
+// STRUCT
+
 #[derive(Debug)]
 pub struct StructMetadata {
     pub name: &'static str,
     pub fields: &'static [FieldMetadata],
 }
-
-inventory::collect!(StructMetadata);
 
 impl StructMetadata {
     pub const fn new(name: &'static str, fields: &'static [FieldMetadata]) -> Self {
@@ -34,36 +34,51 @@ impl StructMetadata {
             field.print();
         }
     }
+}
 
-    pub fn to_html(&self) -> String {
-        String::from("html bem projetadinho e com um css coisa mais linda kkkkkkkkj\n")
+// ENUM
+
+#[derive(Debug)]
+pub struct EnumMetadata {
+    pub name: &'static str,
+    pub variants: &'static [&'static str],
+}
+
+impl EnumMetadata {
+    pub const fn new(name: &'static str, variants: &'static [&'static str]) -> Self {
+        Self { name, variants }
     }
 
-    pub fn to_sql(&self) -> String {
-        let columns: Vec<String> = self
-            .fields
-            .iter()
-            .filter_map(|f| sql_type(f.ty).map(|ty| format!("\t{} {}", f.name, ty)))
-            .collect();
-
-        if columns.is_empty() {
-            return String::new();
+    pub fn print(&self) {
+        println!("Enum: {}\nVariants:", self.name);
+        for variant in self.variants {
+            println!(" - {}", variant);
         }
-
-        format!(
-            "CREATE TABLE IF NOT EXISTS {} (\n{}\n);",
-            self.name,
-            columns.join(",\n")
-        )
     }
 }
 
-fn sql_type(ty: &str) -> Option<&'static str> {
-    let name = ty.rsplit("::").next()?.trim();
-    match name {
-        "i8" | "i16" | "i32" | "i64" | "i128" | "isize" | "u8" | "u16" | "u32" | "u64" | "u128" | "usize" | "bool" => Some("INTEGER"),
-        "f32" | "f64" => Some("REAL"),
-        "String" | "char" => Some("TEXT"),
-        _ => None,
+// WRAPPER
+
+#[derive(Debug)]
+pub enum TypeMetadata {
+    Struct(StructMetadata),
+    Enum(EnumMetadata),
+}
+
+inventory::collect!(TypeMetadata);
+
+impl TypeMetadata {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Struct(s) => s.name,
+            Self::Enum(e) => e.name,
+        }
+    }
+
+    pub fn print(&self) {
+        match self {
+            Self::Struct(s) => s.print(),
+            Self::Enum(e) => e.print(),
+        }
     }
 }

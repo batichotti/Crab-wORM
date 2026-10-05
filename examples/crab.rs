@@ -1,6 +1,18 @@
 use crab_worm::crab_worm;
 
 #[derive(crab_worm)]
+pub enum Worm {
+	LYSARETE_BRASILIENSIS,
+	STRONGYLOIDES_STERCORALIS
+}
+
+#[derive(crab_worm)]
+pub struct Claw {
+	pub side: String,
+	pub size_cm: u16,
+}
+
+#[derive(crab_worm)]
 pub struct Crab {
 	pub name: String,
 	pub species: String,
@@ -12,11 +24,13 @@ pub struct Crab {
 	pub color: String,
 	pub is_nocturnal: bool,
 	pub is_alive: bool,
+	pub worms: Vec<Worm>,
+	pub nicknames: Vec<String>,
+	pub claws: Vec<Claw>,
 }
 
 #[derive(crab_worm)]
-pub struct Nihil {
-}
+pub struct Nihil {}
 
 #[derive(crab_worm)]
 pub struct User {
@@ -28,7 +42,10 @@ pub struct User {
 }
 
 fn main() {
-	for metadata in crab_worm_core::inventory::iter::<crab_worm_core::meta::StructMetadata> {
-		println!("{metadata:?}");
+	for metadata in crab_worm_core::inventory::iter::<crab_worm_core::meta::TypeMetadata> {
+		metadata.print();
+		println!();
 	}
+
+	crab_worm_core::parasitize();
 }
