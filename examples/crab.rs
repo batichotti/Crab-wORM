@@ -7,6 +7,12 @@ pub enum Worm {
 }
 
 #[derive(crab_worm)]
+pub struct Claw {
+	pub side: String,
+	pub size_cm: u16,
+}
+
+#[derive(crab_worm)]
 pub struct Crab {
 	pub name: String,
 	pub species: String,
@@ -18,12 +24,13 @@ pub struct Crab {
 	pub color: String,
 	pub is_nocturnal: bool,
 	pub is_alive: bool,
-	pub worms: Worm,
+	pub worms: Vec<Worm>,
+	pub nicknames: Vec<String>,
+	pub claws: Vec<Claw>,
 }
 
 #[derive(crab_worm)]
 pub struct Nihil {}
-
 
 #[derive(crab_worm)]
 pub struct User {
@@ -36,7 +43,9 @@ pub struct User {
 
 fn main() {
 	for metadata in crab_worm_core::inventory::iter::<crab_worm_core::meta::TypeMetadata> {
-    	metadata.print();
-    	println!("{}\n", metadata.to_sql());
+		metadata.print();
+		println!();
 	}
+
+	println!("{}", crab_worm_core::meta::generate_sql());
 }
