@@ -33,7 +33,7 @@ pub struct Crab {
 pub struct Nihil {}
 
 #[derive(crab_worm)]
-pub struct User {
+pub struct Usuario {
 	pub id: u32,
 	pub name: String,
 	pub email: String,
@@ -47,5 +47,5 @@ fn main() {
 		println!();
 	}
 
-	crab_worm_core::parasitize();
+	let _ = crab_worm_core::parasitize();
 }
