@@ -12,6 +12,6 @@ pub fn parasitize() -> io::Result<()> {
     fs::write("schema.sql", generate_sql())?;
     fs::write("index.html", generate_html())?;
 
-    println!("Crab-wORM: schema.sql e index.html gerados");
+    println!("Crab-wORM: schema.sql and index.html created");
     Ok(())
 }
