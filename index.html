@@ -1,0 +1,97 @@
+<form data-table="claw">
+<fieldset>
+<legend>Claw</legend>
+<label for="claw_side">side</label>
+<input type="text" name="side" id="claw_side" required>
+<label for="claw_size_cm">size_cm</label>
+<input type="number" name="size_cm" id="claw_size_cm" required>
+</fieldset>
+<button type="submit">Save</button>
+<output class="status"></output>
+</form>
+
+<form data-table="user">
+<fieldset>
+<legend>User</legend>
+<label for="user_name">name</label>
+<input type="text" name="name" id="user_name" required>
+<label for="user_email">email</label>
+<input type="text" name="email" id="user_email" required>
+<label for="user_age">age</label>
+<input type="number" name="age" id="user_age" required>
+<label for="user_is_active">is_active</label>
+<input type="checkbox" name="is_active" id="user_is_active">
+</fieldset>
+<button type="submit">Save</button>
+<output class="status"></output>
+</form>
+
+<form data-table="crab">
+<fieldset>
+<legend>Crab</legend>
+<label for="crab_name">name</label>
+<input type="text" name="name" id="crab_name" required>
+<label for="crab_species">species</label>
+<input type="text" name="species" id="crab_species" required>
+<label for="crab_habitat">habitat</label>
+<input type="text" name="habitat" id="crab_habitat" required>
+<label for="crab_length_segments">length_segments</label>
+<input type="number" name="length_segments" id="crab_length_segments" required>
+<label for="crab_weight_grams">weight_grams</label>
+<input type="number" name="weight_grams" id="crab_weight_grams" required>
+<label for="crab_age_years">age_years</label>
+<input type="number" name="age_years" id="crab_age_years" required>
+<label for="crab_claw_span_cm">claw_span_cm</label>
+<input type="number" name="claw_span_cm" id="crab_claw_span_cm" required>
+<label for="crab_color">color</label>
+<input type="text" name="color" id="crab_color" required>
+<label for="crab_is_nocturnal">is_nocturnal</label>
+<input type="checkbox" name="is_nocturnal" id="crab_is_nocturnal">
+<label for="crab_is_alive">is_alive</label>
+<input type="checkbox" name="is_alive" id="crab_is_alive">
+</fieldset>
+<button type="submit">Save</button>
+<output class="status"></output>
+</form>
+
+<select name="Worm_id">
+	<option value="1">LYSARETE_BRASILIENSIS</option>
+	<option value="2">STRONGYLOIDES_STERCORALIS</option>
+</select>
+
+
+<script>
+const API_URL = "http://localhost:3000";
+
+function readForm(form) {
+	const row = {};
+	for (const el of form.querySelectorAll("input, select")) {
+		if (!el.name) continue;
+		if (el.type === "checkbox") row[el.name] = el.checked;
+		else if (el.value === "" && !el.required) row[el.name] = null;
+		else if (el.type === "number" || el.tagName === "SELECT") row[el.name] = Number(el.value);
+		else row[el.name] = el.value;
+	}
+	return row;
+}
+
+for (const form of document.querySelectorAll("form[data-table]")) {
+	const status = form.querySelector(".status");
+	form.addEventListener("submit", async (event) => {
+		event.preventDefault();
+		status.textContent = "Saving...";
+		try {
+			const res = await fetch(`${API_URL}/${form.dataset.table}`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(readForm(form)),
+			});
+			if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+			form.reset();
+			status.textContent = "Saved.";
+		} catch (err) {
+			status.textContent = "Error: " + err.message;
+		}
+	});
+}
+</script>
