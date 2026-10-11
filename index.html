@@ -1,97 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crab-wORM</title>
+<style>
+:root {
+	--bg: #0a0a0b;
+	--panel: #131315;
+	--panel-2: #1b1b1e;
+	--line: #2a2a2e;
+	--text: #ece9e4;
+	--muted: #8b877f;
+	--rust: #f74c00;
+	--rust-hi: #ff7a33;
+	--rust-dim: #7a2a0a;
+	--ok: #7fd18b;
+	--err: #ff5c5c;
+	--mono: ui-monospace, "JetBrains Mono", "Fira Code", SFMono-Regular, Menlo, Consolas, monospace;
+	--sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+::selection { background: var(--rust); color: #000; }
+
+body {
+	margin: 0;
+	padding: 2.5rem 1.25rem 4rem;
+	color: var(--text);
+	font: 15px/1.5 var(--sans);
+	background:
+		radial-gradient(1100px 480px at 85% -10%, rgba(247, 76, 0, .12), transparent 60%),
+		var(--bg);
+	min-height: 100vh;
+}
+
+.page-head {
+	max-width: 1100px;
+	margin: 0 auto 2rem;
+	padding-bottom: 1rem;
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: .5rem 1rem;
+	border-bottom: 1px solid var(--line);
+}
+.page-head h1 { margin: 0; font: 700 1.5rem var(--mono); letter-spacing: -.02em; }
+.page-head h1 span { color: var(--rust); }
+.page-head p { margin: 0; color: var(--muted); font: .8rem var(--mono); }
+
+h2.section {
+	max-width: 1100px;
+	margin: 2.75rem auto 1rem;
+	color: var(--muted);
+	font: 700 .78rem var(--mono);
+	letter-spacing: .14em;
+	text-transform: uppercase;
+}
+
+main, .enums {
+	max-width: 1100px;
+	margin: 0 auto;
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+	gap: 1.25rem;
+	align-items: start;
+}
+
+form, .enum-card {
+	background: var(--panel);
+	border: 1px solid var(--line);
+	border-top: 3px solid var(--rust);
+	border-radius: 10px;
+	padding: 1.25rem;
+	box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
+}
+
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 1.1rem; }
+
+legend {
+	float: left;
+	width: 100%;
+	margin: 0 0 1.1rem;
+	padding: 0;
+	display: flex;
+	align-items: center;
+	gap: .6rem;
+	color: var(--rust);
+	font: 700 1.1rem var(--mono);
+}
+legend::before {
+	content: "struct";
+	color: var(--muted);
+	font: 600 .62rem var(--mono);
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	padding: .1rem .4rem;
+}
+legend + * { clear: both; }
+
+/* cartao de enum */
+.enum-card h3 {
+	margin: 0 0 1rem;
+	display: flex;
+	align-items: center;
+	gap: .6rem;
+	color: var(--rust);
+	font: 700 1.1rem var(--mono);
+}
+.enum-card .kw {
+	color: var(--muted);
+	font: 600 .62rem var(--mono);
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	padding: .1rem .4rem;
+}
+.enum-card ol { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }
+.enum-card li { display: flex; align-items: baseline; gap: .8rem; font: .8rem var(--mono); overflow-wrap: anywhere; }
+.enum-card li code { min-width: 1.5rem; text-align: right; color: var(--rust-hi); }
+
+.field { display: grid; gap: .45rem; }
+.label-row { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: .25rem .75rem; }
+.label-name { font-size: .84rem; font-weight: 600; letter-spacing: .02em; }
+.label-name.req::after { content: " *"; color: var(--rust); }
+.ty {
+	color: var(--muted);
+	font: 500 .68rem var(--mono);
+	background: var(--panel-2);
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	padding: .05rem .4rem;
+}
+
+input[type=text], input[type=number], input[type=email], input[type=url],
+input[type=tel], input[type=password], select, textarea {
+	width: 100%;
+	color: var(--text);
+	background: var(--bg);
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	padding: .6rem .75rem;
+	font: inherit;
+	transition: border-color .15s, box-shadow .15s;
+}
+input[type=number] { font-family: var(--mono); }
+textarea { resize: vertical; min-height: 5.5rem; }
+::placeholder { color: #55524c; }
+input:hover, select:hover, textarea:hover { border-color: #3d3d42; }
+input:focus, select:focus, textarea:focus {
+	outline: 0;
+	border-color: var(--rust);
+	box-shadow: 0 0 0 3px rgba(247, 76, 0, .22);
+}
+input:user-invalid, select:user-invalid, textarea:user-invalid { border-color: var(--err); }
+
+select {
+	appearance: none;
+	padding-right: 2.3rem;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23f74c00' stroke-width='2'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right .85rem center;
+}
+select option { background: var(--panel); color: var(--text); }
+select:invalid { color: var(--muted); }
+
+/* enum: botoes de escolha (radio = um valor, checkbox = varios valores) */
+.pills { display: flex; flex-wrap: wrap; gap: .5rem; }
+.pill { position: relative; }
+.pill input { position: absolute; opacity: 0; pointer-events: none; }
+.pill span {
+	display: block;
+	padding: .45rem .85rem;
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	background: var(--bg);
+	font: .76rem var(--mono);
+	cursor: pointer;
+	transition: border-color .15s, background .15s, color .15s;
+}
+.pill span:hover { border-color: var(--rust); }
+.pill input:checked + span { background: var(--rust); border-color: var(--rust); color: #0a0a0b; font-weight: 700; }
+.pill input:focus-visible + span { box-shadow: 0 0 0 3px rgba(247, 76, 0, .3); }
+.pill.none span { color: var(--muted); font-style: italic; }
+.pill.none input:checked + span { background: var(--panel-2); border-color: var(--muted); color: var(--text); font-weight: 400; }
+.pills.multi .pill input:checked + span::before { content: "✓ "; }
+
+/* bool: interruptor */
+.switch { position: relative; display: inline-flex; align-items: center; gap: .7rem; width: fit-content; cursor: pointer; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch .track {
+	position: relative;
+	width: 46px;
+	height: 26px;
+	border-radius: 999px;
+	background: var(--panel-2);
+	border: 1px solid var(--line);
+	transition: background .15s, border-color .15s;
+}
+.switch .track::after {
+	content: "";
+	position: absolute;
+	top: 3px;
+	left: 3px;
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	background: var(--muted);
+	transition: transform .15s, background .15s;
+}
+.switch input:checked + .track { background: var(--rust-dim); border-color: var(--rust); }
+.switch input:checked + .track::after { transform: translateX(20px); background: var(--rust-hi); }
+.switch input:focus-visible + .track { box-shadow: 0 0 0 3px rgba(247, 76, 0, .3); }
+.switch .state { font: .78rem var(--mono); color: var(--muted); }
+.switch .state::before { content: "false"; }
+.switch input:checked ~ .state::before { content: "true"; color: var(--rust-hi); }
+
+/* Vec<T>: lista repetivel */
+.repeat { display: grid; gap: .6rem; }
+.rows { display: grid; gap: .5rem; }
+.row { display: flex; align-items: center; gap: .5rem; }
+.row > :first-child { flex: 1; min-width: 0; }
+.rm {
+	flex: none;
+	width: 2.3rem;
+	height: 2.3rem;
+	color: var(--muted);
+	background: var(--bg);
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	font: 1.1rem/1 var(--mono);
+	cursor: pointer;
+	transition: border-color .15s, color .15s;
+}
+.rm:hover { color: var(--err); border-color: var(--err); }
+.add {
+	justify-self: start;
+	padding: .4rem .85rem;
+	color: var(--rust-hi);
+	background: transparent;
+	border: 1px dashed var(--rust-dim);
+	border-radius: 6px;
+	font: 600 .75rem var(--mono);
+	cursor: pointer;
+	transition: border-color .15s, background .15s;
+}
+.add:hover { border-color: var(--rust); background: rgba(247, 76, 0, .08); }
+.rm:focus-visible, .add:focus-visible { outline: 0; box-shadow: 0 0 0 3px rgba(247, 76, 0, .3); }
+
+button[type=submit] {
+	margin-top: 1.25rem;
+	width: 100%;
+	padding: .75rem 1rem;
+	color: #0a0a0b;
+	background: var(--rust);
+	border: 0;
+	border-radius: 6px;
+	font: 700 .85rem var(--mono);
+	letter-spacing: .08em;
+	text-transform: uppercase;
+	cursor: pointer;
+	transition: background .15s, transform .1s;
+}
+button[type=submit]:hover { background: var(--rust-hi); transform: translateY(-1px); }
+button[type=submit]:active { transform: none; }
+button[type=submit]:focus-visible { outline: 0; box-shadow: 0 0 0 3px rgba(247, 76, 0, .35); }
+button[type=submit]:disabled { opacity: .5; cursor: wait; transform: none; }
+
+.status { display: block; min-height: 1.3em; margin-top: .75rem; color: var(--muted); font: .78rem var(--mono); }
+.status[data-state=ok] { color: var(--ok); }
+.status[data-state=error] { color: var(--err); }
+</style>
+</head>
+<body>
+<header class="page-head">
+<h1>Crab-w<span>ORM</span></h1>
+<p>// forms generated from your structs</p>
+</header>
+<main>
 <form data-table="claw">
 <fieldset>
 <legend>Claw</legend>
-<label for="claw_side">side</label>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="claw_side">Side</label><span class="ty">String</span></div>
 <input type="text" name="side" id="claw_side" required>
-<label for="claw_size_cm">size_cm</label>
-<input type="number" name="size_cm" id="claw_size_cm" required>
+</div>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="claw_size_cm">Size cm</label><span class="ty">u16 · 0..=65535</span></div>
+<input type="number" name="size_cm" id="claw_size_cm" step="1" min="0" max="65535" required>
+</div>
 </fieldset>
 <button type="submit">Save</button>
-<output class="status"></output>
-</form>
-
-<form data-table="user">
-<fieldset>
-<legend>User</legend>
-<label for="user_name">name</label>
-<input type="text" name="name" id="user_name" required>
-<label for="user_email">email</label>
-<input type="text" name="email" id="user_email" required>
-<label for="user_age">age</label>
-<input type="number" name="age" id="user_age" required>
-<label for="user_is_active">is_active</label>
-<input type="checkbox" name="is_active" id="user_is_active">
-</fieldset>
-<button type="submit">Save</button>
-<output class="status"></output>
+<output class="status" role="status"></output>
 </form>
 
 <form data-table="crab">
 <fieldset>
 <legend>Crab</legend>
-<label for="crab_name">name</label>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="crab_name">Name</label><span class="ty">String</span></div>
 <input type="text" name="name" id="crab_name" required>
-<label for="crab_species">species</label>
+</div>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="crab_species">Species</label><span class="ty">String</span></div>
 <input type="text" name="species" id="crab_species" required>
-<label for="crab_habitat">habitat</label>
+</div>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="crab_habitat">Habitat</label><span class="ty">String</span></div>
 <input type="text" name="habitat" id="crab_habitat" required>
-<label for="crab_length_segments">length_segments</label>
-<input type="number" name="length_segments" id="crab_length_segments" required>
-<label for="crab_weight_grams">weight_grams</label>
-<input type="number" name="weight_grams" id="crab_weight_grams" required>
-<label for="crab_age_years">age_years</label>
-<input type="number" name="age_years" id="crab_age_years" required>
-<label for="crab_claw_span_cm">claw_span_cm</label>
-<input type="number" name="claw_span_cm" id="crab_claw_span_cm" required>
-<label for="crab_color">color</label>
+</div>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="crab_length_segments">Length segments</label><span class="ty">u32</span></div>
+<input type="number" name="length_segments" id="crab_length_segments" step="1" min="0" max="4294967295" required>
+</div>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="crab_weight_grams">Weight grams</label><span class="ty">u32</span></div>
+<input type="number" name="weight_grams" id="crab_weight_grams" step="1" min="0" max="4294967295" required>
+</div>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="crab_age_years">Age years</label><span class="ty">u8 · 0..=255</span></div>
+<input type="number" name="age_years" id="crab_age_years" step="1" min="0" max="255" required>
+</div>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="crab_claw_span_cm">Claw span cm</label><span class="ty">u16 · 0..=65535</span></div>
+<input type="number" name="claw_span_cm" id="crab_claw_span_cm" step="1" min="0" max="65535" required>
+</div>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="crab_color">Color</label><span class="ty">String</span></div>
 <input type="text" name="color" id="crab_color" required>
-<label for="crab_is_nocturnal">is_nocturnal</label>
-<input type="checkbox" name="is_nocturnal" id="crab_is_nocturnal">
-<label for="crab_is_alive">is_alive</label>
-<input type="checkbox" name="is_alive" id="crab_is_alive">
+</div>
+<div class="field">
+<div class="label-row"><label class="label-name" for="crab_is_nocturnal">Is nocturnal</label><span class="ty">bool</span></div>
+<label class="switch"><input type="checkbox" name="is_nocturnal" id="crab_is_nocturnal"><span class="track"></span><span class="state"></span></label>
+</div>
+<div class="field">
+<div class="label-row"><label class="label-name" for="crab_is_alive">Is alive</label><span class="ty">bool</span></div>
+<label class="switch"><input type="checkbox" name="is_alive" id="crab_is_alive"><span class="track"></span><span class="state"></span></label>
+</div>
+<div class="field">
+<div class="label-row"><span class="label-name" id="crab_worms_ids_label">Worms</span><span class="ty">Vec&lt;Worm&gt;</span></div>
+<div class="pills multi" data-list="worms_ids" data-child="crab_worms" data-fk="crab_id" data-col="value_id" role="group" aria-labelledby="crab_worms_ids_label">
+<label class="pill"><input type="checkbox" value="1"><span>LYSARETE_BRASILIENSIS</span></label>
+<label class="pill"><input type="checkbox" value="2"><span>STRONGYLOIDES_STERCORALIS</span></label>
+</div>
+</div>
+<div class="field">
+<div class="label-row"><span class="label-name" id="crab_nicknames_label">Nicknames</span><span class="ty">Vec&lt;String&gt;</span></div>
+<div class="repeat" data-list="nicknames" data-child="crab_nicknames" data-fk="crab_id" data-col="value">
+<div class="rows"></div>
+<template><div class="row"><input type="text" class="item" required><button type="button" class="rm" aria-label="Remove">×</button></div></template>
+<button type="button" class="add">+ Add</button>
+</div>
+</div>
+<div class="field">
+<div class="label-row"><span class="label-name" id="crab_claws_ids_label">Claws</span><span class="ty">Vec&lt;Claw&gt;</span></div>
+<div class="repeat" data-list="claws_ids" data-child="crab_claws" data-fk="crab_id" data-col="value_id">
+<div class="rows"></div>
+<template><div class="row"><select class="item" data-ref="claw" required>
+<option value="" disabled selected>Select…</option>
+</select><button type="button" class="rm" aria-label="Remove">×</button></div></template>
+<button type="button" class="add">+ Add</button>
+</div>
+</div>
 </fieldset>
 <button type="submit">Save</button>
-<output class="status"></output>
+<output class="status" role="status"></output>
 </form>
 
-<select name="Worm_id">
-	<option value="1">LYSARETE_BRASILIENSIS</option>
-	<option value="2">STRONGYLOIDES_STERCORALIS</option>
-</select>
-
-
+<form data-table="user">
+<fieldset>
+<legend>User</legend>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="user_name">Name</label><span class="ty">String</span></div>
+<input type="text" name="name" id="user_name" required>
+</div>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="user_email">Email</label><span class="ty">String</span></div>
+<input type="email" name="email" id="user_email" autocomplete="email" placeholder="name@example.com" required>
+</div>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="user_age">Age</label><span class="ty">u8 · 0..=255</span></div>
+<input type="number" name="age" id="user_age" step="1" min="0" max="255" required>
+</div>
+<div class="field">
+<div class="label-row"><label class="label-name" for="user_is_active">Is active</label><span class="ty">bool</span></div>
+<label class="switch"><input type="checkbox" name="is_active" id="user_is_active"><span class="track"></span><span class="state"></span></label>
+</div>
+</fieldset>
+<button type="submit">Save</button>
+<output class="status" role="status"></output>
+</form>
+</main>
+<h2 class="section">Enums</h2>
+<section class="enums">
+<section class="enum-card">
+<h3><span class="kw">enum</span>Worm</h3>
+<ol>
+<li><code>1</code><span>LYSARETE_BRASILIENSIS</span></li>
+<li><code>2</code><span>STRONGYLOIDES_STERCORALIS</span></li>
+</ol>
+</section>
+</section>
 <script>
 const API_URL = "http://localhost:3000";
 
+// Valor de um item de lista (Vec<T>), conforme o controle usado.
+function itemValue(el) {
+	if (el.type === "checkbox") return el.checked;
+	if (el.type === "number" || el.tagName === "SELECT") return Number(el.value);
+	return el.value;
+}
+
+// Vec<Enum>: ids marcados. Vec<outro tipo>: um valor por linha adicionada.
+function readList(box) {
+	if (box.classList.contains("pills")) {
+		return [...box.querySelectorAll("input:checked")].map((el) => Number(el.value));
+	}
+	return [...box.querySelectorAll(".item")].map(itemValue);
+}
+
 function readForm(form) {
 	const row = {};
-	for (const el of form.querySelectorAll("input, select")) {
+	for (const el of form.querySelectorAll("input, select, textarea")) {
 		if (!el.name) continue;
+		if (el.type === "radio" && !el.checked) continue;
 		if (el.type === "checkbox") row[el.name] = el.checked;
 		else if (el.value === "" && !el.required) row[el.name] = null;
-		else if (el.type === "number" || el.tagName === "SELECT") row[el.name] = Number(el.value);
+		else if (el.type === "number" || el.type === "radio" || el.tagName === "SELECT") row[el.name] = Number(el.value);
 		else row[el.name] = el.value;
 	}
 	return row;
 }
 
+// Listas (Vec<T>) viram linhas nas tabelas filhas: {pai}_{campo}({pai}_id, position, value).
+function readLists(form) {
+	return [...form.querySelectorAll("[data-list]")].map((box) => ({
+		table: box.dataset.child,
+		fk: box.dataset.fk,
+		col: box.dataset.col,
+		values: readList(box),
+	}));
+}
+
+async function api(path, init) {
+	const res = await fetch(`${API_URL}/${path}`, init);
+	if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+	return res;
+}
+
+const JSON_HEADERS = { "Content-Type": "application/json" };
+
+// Salva a linha principal e depois as listas. Se uma lista falhar, apaga a linha
+// principal (o ON DELETE CASCADE leva as filhas junto) para nao ficar registro pela metade.
+async function save(form) {
+	const res = await api(form.dataset.table, {
+		method: "POST",
+		headers: {
+			...JSON_HEADERS,
+			Prefer: "return=representation",
+			Accept: "application/vnd.pgrst.object+json",
+		},
+		body: JSON.stringify(readForm(form)),
+	});
+	const parent = await res.json();
+
+	try {
+		for (const list of readLists(form)) {
+			if (list.values.length === 0) continue;
+			const rows = list.values.map((value, position) => ({
+				[list.fk]: parent.id,
+				position,
+				[list.col]: value,
+			}));
+			await api(list.table, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(rows) });
+		}
+	} catch (err) {
+		await fetch(`${API_URL}/${form.dataset.table}?id=eq.${parent.id}`, { method: "DELETE" }).catch(() => {});
+		throw err;
+	}
+}
+
+// Campos que apontam para outra struct: carrega as linhas da API como opcoes.
+const refCache = {};
+
+function fetchRows(table) {
+	refCache[table] ??= fetch(`${API_URL}/${table}`)
+		.then((res) => {
+			if (!res.ok) throw new Error(res.status);
+			return res.json();
+		})
+		.catch((err) => {
+			delete refCache[table];
+			throw err;
+		});
+	return refCache[table];
+}
+
+async function fillRef(select) {
+	try {
+		for (const row of await fetchRows(select.dataset.ref)) {
+			const option = document.createElement("option");
+			option.value = row.id;
+			option.textContent = row.name ?? row.title ?? `#${row.id}`;
+			select.append(option);
+		}
+	} catch {
+		select.querySelector("option").textContent = "unavailable (API offline)";
+	}
+}
+
+document.querySelectorAll("select[data-ref]").forEach(fillRef);
+
+// Listas repetiveis: adicionar e remover linhas.
+document.addEventListener("click", (event) => {
+	const add = event.target.closest(".repeat .add");
+	if (add) {
+		const box = add.closest(".repeat");
+		const row = box.querySelector("template").content.firstElementChild.cloneNode(true);
+		box.querySelector(".rows").append(row);
+		row.querySelectorAll("select[data-ref]").forEach(fillRef);
+		row.querySelector(".item")?.focus();
+		return;
+	}
+	event.target.closest(".repeat .rm")?.closest(".row").remove();
+});
+
 for (const form of document.querySelectorAll("form[data-table]")) {
 	const status = form.querySelector(".status");
+	const button = form.querySelector("button[type=submit]");
 	form.addEventListener("submit", async (event) => {
 		event.preventDefault();
+		button.disabled = true;
+		status.dataset.state = "";
 		status.textContent = "Saving...";
 		try {
-			const res = await fetch(`${API_URL}/${form.dataset.table}`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(readForm(form)),
-			});
-			if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+			await save(form);
 			form.reset();
+			form.querySelectorAll(".repeat .rows").forEach((rows) => rows.replaceChildren());
+			status.dataset.state = "ok";
 			status.textContent = "Saved.";
 		} catch (err) {
+			status.dataset.state = "error";
 			status.textContent = "Error: " + err.message;
+		} finally {
+			button.disabled = false;
 		}
 	});
 }
 </script>
+</body>
+</html>

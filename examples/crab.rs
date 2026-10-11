@@ -42,10 +42,5 @@ pub struct User {
 }
 
 fn main() {
-	for metadata in crab_worm_core::inventory::iter::<crab_worm_core::meta::TypeMetadata> {
-		metadata.print();
-		println!();
-	}
-
-	crab_worm_core::parasitize();
+	crab_worm::parasitize();
 }

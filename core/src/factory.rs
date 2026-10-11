@@ -12,7 +12,6 @@ impl StructMetadata {
             .fields
             .iter()
             .filter(|f| f.name != "id")
-            .filter(|f| vec_inner(f.ty).is_none())
             .map(|f| field_to_html(self.name, f))
             .collect();
 
@@ -22,9 +21,10 @@ impl StructMetadata {
 
         format!(
             "<form data-table=\"{}\">\n<fieldset>\n<legend>{}</legend>\n{}\n</fieldset>\n\
-             <button type=\"submit\">Save</button>\n<output class=\"status\"></output>\n</form>",
+             <button type=\"submit\">Save</button>\n\
+             <output class=\"status\" role=\"status\"></output>\n</form>",
             snake_case(self.name),
-            self.name,
+            esc(self.name),
             fields.join("\n")
         )
     }
@@ -64,15 +64,26 @@ impl StructMetadata {
 // ENUM
 
 impl EnumMetadata {
+    /// Cartao de referencia: lista as variantes com o id que vai para o banco.
+    /// (Como campo de uma struct, o enum vira botoes de escolha ou select.)
     pub fn to_html(&self) -> String {
-        let options: String = self
+        if self.variants.is_empty() {
+            return String::new();
+        }
+
+        let items: String = self
             .variants
             .iter()
             .enumerate()
-            .map(|(i, v)| format!("\t<option value=\"{}\">{v}</option>\n", i + 1))
-            .collect();
+            .map(|(i, v)| format!("<li><code>{}</code><span>{}</span></li>", i + 1, esc(v)))
+            .collect::<Vec<_>>()
+            .join("\n");
 
-        format!("<select name=\"{}_id\">\n{}</select>\n", self.name, options)
+        format!(
+            "<section class=\"enum-card\">\n<h3><span class=\"kw\">enum</span>{}</h3>\n<ol>\n{}\n</ol>\n</section>",
+            esc(self.name),
+            items
+        )
     }
 
     pub fn to_sql(&self) -> String {
@@ -119,50 +130,465 @@ impl TypeMetadata {
     }
 }
 
-const SUBMIT_SCRIPT: &str = r#"<script>
+// HTML: pagina completa (CSS + formularios + JS)
+
+const STYLE: &str = r##"<style>
+:root {
+	--bg: #0a0a0b;
+	--panel: #131315;
+	--panel-2: #1b1b1e;
+	--line: #2a2a2e;
+	--text: #ece9e4;
+	--muted: #8b877f;
+	--rust: #f74c00;
+	--rust-hi: #ff7a33;
+	--rust-dim: #7a2a0a;
+	--ok: #7fd18b;
+	--err: #ff5c5c;
+	--mono: ui-monospace, "JetBrains Mono", "Fira Code", SFMono-Regular, Menlo, Consolas, monospace;
+	--sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+	color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+::selection { background: var(--rust); color: #000; }
+
+body {
+	margin: 0;
+	padding: 2.5rem 1.25rem 4rem;
+	color: var(--text);
+	font: 15px/1.5 var(--sans);
+	background:
+		radial-gradient(1100px 480px at 85% -10%, rgba(247, 76, 0, .12), transparent 60%),
+		var(--bg);
+	min-height: 100vh;
+}
+
+.page-head {
+	max-width: 1100px;
+	margin: 0 auto 2rem;
+	padding-bottom: 1rem;
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: .5rem 1rem;
+	border-bottom: 1px solid var(--line);
+}
+.page-head h1 { margin: 0; font: 700 1.5rem var(--mono); letter-spacing: -.02em; }
+.page-head h1 span { color: var(--rust); }
+.page-head p { margin: 0; color: var(--muted); font: .8rem var(--mono); }
+
+h2.section {
+	max-width: 1100px;
+	margin: 2.75rem auto 1rem;
+	color: var(--muted);
+	font: 700 .78rem var(--mono);
+	letter-spacing: .14em;
+	text-transform: uppercase;
+}
+
+main, .enums {
+	max-width: 1100px;
+	margin: 0 auto;
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
+	gap: 1.25rem;
+	align-items: start;
+}
+
+form, .enum-card {
+	background: var(--panel);
+	border: 1px solid var(--line);
+	border-top: 3px solid var(--rust);
+	border-radius: 10px;
+	padding: 1.25rem;
+	box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
+}
+
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 1.1rem; }
+
+legend {
+	float: left;
+	width: 100%;
+	margin: 0 0 1.1rem;
+	padding: 0;
+	display: flex;
+	align-items: center;
+	gap: .6rem;
+	color: var(--rust);
+	font: 700 1.1rem var(--mono);
+}
+legend::before {
+	content: "struct";
+	color: var(--muted);
+	font: 600 .62rem var(--mono);
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	padding: .1rem .4rem;
+}
+legend + * { clear: both; }
+
+/* cartao de enum */
+.enum-card h3 {
+	margin: 0 0 1rem;
+	display: flex;
+	align-items: center;
+	gap: .6rem;
+	color: var(--rust);
+	font: 700 1.1rem var(--mono);
+}
+.enum-card .kw {
+	color: var(--muted);
+	font: 600 .62rem var(--mono);
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	padding: .1rem .4rem;
+}
+.enum-card ol { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }
+.enum-card li { display: flex; align-items: baseline; gap: .8rem; font: .8rem var(--mono); overflow-wrap: anywhere; }
+.enum-card li code { min-width: 1.5rem; text-align: right; color: var(--rust-hi); }
+
+.field { display: grid; gap: .45rem; }
+.label-row { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: .25rem .75rem; }
+.label-name { font-size: .84rem; font-weight: 600; letter-spacing: .02em; }
+.label-name.req::after { content: " *"; color: var(--rust); }
+.ty {
+	color: var(--muted);
+	font: 500 .68rem var(--mono);
+	background: var(--panel-2);
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	padding: .05rem .4rem;
+}
+
+input[type=text], input[type=number], input[type=email], input[type=url],
+input[type=tel], input[type=password], select, textarea {
+	width: 100%;
+	color: var(--text);
+	background: var(--bg);
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	padding: .6rem .75rem;
+	font: inherit;
+	transition: border-color .15s, box-shadow .15s;
+}
+input[type=number] { font-family: var(--mono); }
+textarea { resize: vertical; min-height: 5.5rem; }
+::placeholder { color: #55524c; }
+input:hover, select:hover, textarea:hover { border-color: #3d3d42; }
+input:focus, select:focus, textarea:focus {
+	outline: 0;
+	border-color: var(--rust);
+	box-shadow: 0 0 0 3px rgba(247, 76, 0, .22);
+}
+input:user-invalid, select:user-invalid, textarea:user-invalid { border-color: var(--err); }
+
+select {
+	appearance: none;
+	padding-right: 2.3rem;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23f74c00' stroke-width='2'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right .85rem center;
+}
+select option { background: var(--panel); color: var(--text); }
+select:invalid { color: var(--muted); }
+
+/* enum: botoes de escolha (radio = um valor, checkbox = varios valores) */
+.pills { display: flex; flex-wrap: wrap; gap: .5rem; }
+.pill { position: relative; }
+.pill input { position: absolute; opacity: 0; pointer-events: none; }
+.pill span {
+	display: block;
+	padding: .45rem .85rem;
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	background: var(--bg);
+	font: .76rem var(--mono);
+	cursor: pointer;
+	transition: border-color .15s, background .15s, color .15s;
+}
+.pill span:hover { border-color: var(--rust); }
+.pill input:checked + span { background: var(--rust); border-color: var(--rust); color: #0a0a0b; font-weight: 700; }
+.pill input:focus-visible + span { box-shadow: 0 0 0 3px rgba(247, 76, 0, .3); }
+.pill.none span { color: var(--muted); font-style: italic; }
+.pill.none input:checked + span { background: var(--panel-2); border-color: var(--muted); color: var(--text); font-weight: 400; }
+.pills.multi .pill input:checked + span::before { content: "✓ "; }
+
+/* bool: interruptor */
+.switch { position: relative; display: inline-flex; align-items: center; gap: .7rem; width: fit-content; cursor: pointer; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.switch .track {
+	position: relative;
+	width: 46px;
+	height: 26px;
+	border-radius: 999px;
+	background: var(--panel-2);
+	border: 1px solid var(--line);
+	transition: background .15s, border-color .15s;
+}
+.switch .track::after {
+	content: "";
+	position: absolute;
+	top: 3px;
+	left: 3px;
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	background: var(--muted);
+	transition: transform .15s, background .15s;
+}
+.switch input:checked + .track { background: var(--rust-dim); border-color: var(--rust); }
+.switch input:checked + .track::after { transform: translateX(20px); background: var(--rust-hi); }
+.switch input:focus-visible + .track { box-shadow: 0 0 0 3px rgba(247, 76, 0, .3); }
+.switch .state { font: .78rem var(--mono); color: var(--muted); }
+.switch .state::before { content: "false"; }
+.switch input:checked ~ .state::before { content: "true"; color: var(--rust-hi); }
+
+/* Vec<T>: lista repetivel */
+.repeat { display: grid; gap: .6rem; }
+.rows { display: grid; gap: .5rem; }
+.row { display: flex; align-items: center; gap: .5rem; }
+.row > :first-child { flex: 1; min-width: 0; }
+.rm {
+	flex: none;
+	width: 2.3rem;
+	height: 2.3rem;
+	color: var(--muted);
+	background: var(--bg);
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	font: 1.1rem/1 var(--mono);
+	cursor: pointer;
+	transition: border-color .15s, color .15s;
+}
+.rm:hover { color: var(--err); border-color: var(--err); }
+.add {
+	justify-self: start;
+	padding: .4rem .85rem;
+	color: var(--rust-hi);
+	background: transparent;
+	border: 1px dashed var(--rust-dim);
+	border-radius: 6px;
+	font: 600 .75rem var(--mono);
+	cursor: pointer;
+	transition: border-color .15s, background .15s;
+}
+.add:hover { border-color: var(--rust); background: rgba(247, 76, 0, .08); }
+.rm:focus-visible, .add:focus-visible { outline: 0; box-shadow: 0 0 0 3px rgba(247, 76, 0, .3); }
+
+button[type=submit] {
+	margin-top: 1.25rem;
+	width: 100%;
+	padding: .75rem 1rem;
+	color: #0a0a0b;
+	background: var(--rust);
+	border: 0;
+	border-radius: 6px;
+	font: 700 .85rem var(--mono);
+	letter-spacing: .08em;
+	text-transform: uppercase;
+	cursor: pointer;
+	transition: background .15s, transform .1s;
+}
+button[type=submit]:hover { background: var(--rust-hi); transform: translateY(-1px); }
+button[type=submit]:active { transform: none; }
+button[type=submit]:focus-visible { outline: 0; box-shadow: 0 0 0 3px rgba(247, 76, 0, .35); }
+button[type=submit]:disabled { opacity: .5; cursor: wait; transform: none; }
+
+.status { display: block; min-height: 1.3em; margin-top: .75rem; color: var(--muted); font: .78rem var(--mono); }
+.status[data-state=ok] { color: var(--ok); }
+.status[data-state=error] { color: var(--err); }
+</style>"##;
+
+const SUBMIT_SCRIPT: &str = r##"<script>
 const API_URL = "http://localhost:3000";
+
+// Valor de um item de lista (Vec<T>), conforme o controle usado.
+function itemValue(el) {
+	if (el.type === "checkbox") return el.checked;
+	if (el.type === "number" || el.tagName === "SELECT") return Number(el.value);
+	return el.value;
+}
+
+// Vec<Enum>: ids marcados. Vec<outro tipo>: um valor por linha adicionada.
+function readList(box) {
+	if (box.classList.contains("pills")) {
+		return [...box.querySelectorAll("input:checked")].map((el) => Number(el.value));
+	}
+	return [...box.querySelectorAll(".item")].map(itemValue);
+}
 
 function readForm(form) {
 	const row = {};
-	for (const el of form.querySelectorAll("input, select")) {
+	for (const el of form.querySelectorAll("input, select, textarea")) {
 		if (!el.name) continue;
+		if (el.type === "radio" && !el.checked) continue;
 		if (el.type === "checkbox") row[el.name] = el.checked;
 		else if (el.value === "" && !el.required) row[el.name] = null;
-		else if (el.type === "number" || el.tagName === "SELECT") row[el.name] = Number(el.value);
+		else if (el.type === "number" || el.type === "radio" || el.tagName === "SELECT") row[el.name] = Number(el.value);
 		else row[el.name] = el.value;
 	}
 	return row;
 }
 
+// Listas (Vec<T>) viram linhas nas tabelas filhas: {pai}_{campo}({pai}_id, position, value).
+function readLists(form) {
+	return [...form.querySelectorAll("[data-list]")].map((box) => ({
+		table: box.dataset.child,
+		fk: box.dataset.fk,
+		col: box.dataset.col,
+		values: readList(box),
+	}));
+}
+
+async function api(path, init) {
+	const res = await fetch(`${API_URL}/${path}`, init);
+	if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+	return res;
+}
+
+const JSON_HEADERS = { "Content-Type": "application/json" };
+
+// Salva a linha principal e depois as listas. Se uma lista falhar, apaga a linha
+// principal (o ON DELETE CASCADE leva as filhas junto) para nao ficar registro pela metade.
+async function save(form) {
+	const res = await api(form.dataset.table, {
+		method: "POST",
+		headers: {
+			...JSON_HEADERS,
+			Prefer: "return=representation",
+			Accept: "application/vnd.pgrst.object+json",
+		},
+		body: JSON.stringify(readForm(form)),
+	});
+	const parent = await res.json();
+
+	try {
+		for (const list of readLists(form)) {
+			if (list.values.length === 0) continue;
+			const rows = list.values.map((value, position) => ({
+				[list.fk]: parent.id,
+				position,
+				[list.col]: value,
+			}));
+			await api(list.table, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(rows) });
+		}
+	} catch (err) {
+		await fetch(`${API_URL}/${form.dataset.table}?id=eq.${parent.id}`, { method: "DELETE" }).catch(() => {});
+		throw err;
+	}
+}
+
+// Campos que apontam para outra struct: carrega as linhas da API como opcoes.
+const refCache = {};
+
+function fetchRows(table) {
+	refCache[table] ??= fetch(`${API_URL}/${table}`)
+		.then((res) => {
+			if (!res.ok) throw new Error(res.status);
+			return res.json();
+		})
+		.catch((err) => {
+			delete refCache[table];
+			throw err;
+		});
+	return refCache[table];
+}
+
+async function fillRef(select) {
+	try {
+		for (const row of await fetchRows(select.dataset.ref)) {
+			const option = document.createElement("option");
+			option.value = row.id;
+			option.textContent = row.name ?? row.title ?? `#${row.id}`;
+			select.append(option);
+		}
+	} catch {
+		select.querySelector("option").textContent = "unavailable (API offline)";
+	}
+}
+
+document.querySelectorAll("select[data-ref]").forEach(fillRef);
+
+// Listas repetiveis: adicionar e remover linhas.
+document.addEventListener("click", (event) => {
+	const add = event.target.closest(".repeat .add");
+	if (add) {
+		const box = add.closest(".repeat");
+		const row = box.querySelector("template").content.firstElementChild.cloneNode(true);
+		box.querySelector(".rows").append(row);
+		row.querySelectorAll("select[data-ref]").forEach(fillRef);
+		row.querySelector(".item")?.focus();
+		return;
+	}
+	event.target.closest(".repeat .rm")?.closest(".row").remove();
+});
+
 for (const form of document.querySelectorAll("form[data-table]")) {
 	const status = form.querySelector(".status");
+	const button = form.querySelector("button[type=submit]");
 	form.addEventListener("submit", async (event) => {
 		event.preventDefault();
+		button.disabled = true;
+		status.dataset.state = "";
 		status.textContent = "Saving...";
 		try {
-			const res = await fetch(`${API_URL}/${form.dataset.table}`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(readForm(form)),
-			});
-			if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+			await save(form);
 			form.reset();
+			form.querySelectorAll(".repeat .rows").forEach((rows) => rows.replaceChildren());
+			status.dataset.state = "ok";
 			status.textContent = "Saved.";
 		} catch (err) {
+			status.dataset.state = "error";
 			status.textContent = "Error: " + err.message;
+		} finally {
+			button.disabled = false;
 		}
 	});
 }
-</script>"#;
+</script>"##;
 
+/// Pagina HTML completa: um formulario por struct e um cartao de referencia por enum.
 pub fn generate_html() -> String {
-    let mut parts: Vec<String> = inventory::iter::<TypeMetadata>()
-        .into_iter()
-        .map(|t| t.to_html())
-        .filter(|s| !s.is_empty())
-        .collect();
-    parts.push(SUBMIT_SCRIPT.to_string());
-    parts.join("\n\n")
+    let mut types: Vec<&'static TypeMetadata> =
+        inventory::iter::<TypeMetadata>.into_iter().collect();
+    types.sort_by_key(|t| t.name());
+
+    let render = |want_struct: bool| -> Vec<String> {
+        types
+            .iter()
+            .filter(|t| matches!(t, TypeMetadata::Struct(_)) == want_struct)
+            .map(|t| t.to_html())
+            .filter(|s| !s.is_empty())
+            .collect()
+    };
+
+    let forms = render(true);
+    let enums = render(false);
+
+    let enum_section = if enums.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "<h2 class=\"section\">Enums</h2>\n<section class=\"enums\">\n{}\n</section>\n",
+            enums.join("\n")
+        )
+    };
+
+    format!(
+        "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n\
+         <meta charset=\"utf-8\">\n\
+         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
+         <title>Crab-wORM</title>\n{style}\n</head>\n<body>\n\
+         <header class=\"page-head\">\n\
+         <h1>Crab-w<span>ORM</span></h1>\n\
+         <p>// forms generated from your structs</p>\n\
+         </header>\n<main>\n{forms}\n</main>\n{enum_section}{script}\n</body>\n</html>\n",
+        style = STYLE,
+        forms = forms.join("\n\n"),
+        enum_section = enum_section,
+        script = SUBMIT_SCRIPT,
+    )
 }
 
 pub fn generate_sql() -> String {
@@ -392,50 +818,327 @@ fn vec_table_def(parent: &str, f: &FieldMetadata) -> Option<String> {
     ))
 }
 
+// HTML: helpers por tipo de dado
+
+fn esc(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+/// `length_segments` -> `Length segments`
+fn humanize(s: &str) -> String {
+    let s = s.replace('_', " ");
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        None => String::new(),
+    }
+}
+
+fn placeholder_option(required: bool) -> &'static str {
+    if required {
+        "<option value=\"\" disabled selected>Select…</option>"
+    } else {
+        "<option value=\"\" selected>— none —</option>"
+    }
+}
+
+struct NumberSpec {
+    attrs: String,
+    range: Option<String>,
+}
+
+/// min/max/step conforme o tipo Rust, para o navegador validar antes do envio.
+fn number_spec(rust_ty: &str) -> NumberSpec {
+    if matches!(rust_ty, "f32" | "f64") {
+        return NumberSpec {
+            attrs: String::from(" step=\"any\""),
+            range: None,
+        };
+    }
+
+    let (min, max): (Option<i128>, Option<i128>) = match rust_ty {
+        "u8" => (Some(0), Some(u8::MAX as i128)),
+        "u16" => (Some(0), Some(u16::MAX as i128)),
+        "u32" => (Some(0), Some(u32::MAX as i128)),
+        "u64" | "u128" | "usize" => (Some(0), None),
+        "i8" => (Some(i8::MIN as i128), Some(i8::MAX as i128)),
+        "i16" => (Some(i16::MIN as i128), Some(i16::MAX as i128)),
+        "i32" => (Some(i32::MIN as i128), Some(i32::MAX as i128)),
+        _ => (None, None),
+    };
+
+    let mut attrs = String::from(" step=\"1\"");
+    if let Some(m) = min {
+        attrs.push_str(&format!(" min=\"{m}\""));
+    }
+    if let Some(m) = max {
+        attrs.push_str(&format!(" max=\"{m}\""));
+    }
+
+    // So mostra o intervalo no badge quando ele e curto (8 e 16 bits).
+    let range = match (min, max) {
+        (Some(lo), Some(hi)) if hi - lo <= u16::MAX as i128 => Some(format!("{lo}..={hi}")),
+        _ => None,
+    };
+
+    NumberSpec { attrs, range }
+}
+
+/// Campo de texto: o tipo do input e deduzido pelo nome do campo.
+/// `na` sao os atributos de identificacao (` name=".." id=".."` ou ` class="item"`).
+fn text_control(na: &str, field: &str, req: &str) -> String {
+    let n = field.to_lowercase();
+    let any = |keys: &[&str]| keys.iter().any(|k| n.contains(*k));
+    let ends = |keys: &[&str]| {
+        keys.iter()
+            .any(|k| n == *k || n.ends_with(&format!("_{k}")))
+    };
+
+    if any(&["description", "descricao", "comment", "comentario"])
+        || ends(&["bio", "notes", "note", "obs"])
+    {
+        return format!("<textarea{na} rows=\"3\"{req}></textarea>");
+    }
+
+    let (kind, extra) = if any(&["email"]) {
+        ("email", " autocomplete=\"email\" placeholder=\"name@example.com\"")
+    } else if any(&["password", "senha"]) {
+        ("password", " autocomplete=\"new-password\"")
+    } else if any(&["website", "url"]) || ends(&["link"]) {
+        ("url", " placeholder=\"https://\"")
+    } else if any(&["phone", "telefone", "celular"]) || ends(&["tel"]) {
+        ("tel", " autocomplete=\"tel\"")
+    } else {
+        ("text", "")
+    };
+
+    format!("<input type=\"{kind}\"{na}{extra}{req}>")
+}
+
+/// Controle de um tipo escalar (bool, char, texto, numero).
+/// Devolve o HTML e, para numeros curtos, o intervalo a mostrar no badge.
+fn scalar_control(ty: &str, na: &str, field: &str, req: &str) -> (String, Option<String>) {
+    match sql_type(ty) {
+        Some("BOOLEAN") => (
+            format!(
+                "<label class=\"switch\"><input type=\"checkbox\"{na}>\
+                 <span class=\"track\"></span><span class=\"state\"></span></label>"
+            ),
+            None,
+        ),
+        Some("CHAR(1)") => (
+            format!("<input type=\"text\"{na} maxlength=\"1\"{req}>"),
+            None,
+        ),
+        Some("TEXT") | None => (text_control(na, field, req), None),
+        Some(_) => {
+            let spec = number_spec(last_segment(ty));
+            (
+                format!("<input type=\"number\"{na}{}{req}>", spec.attrs),
+                spec.range,
+            )
+        }
+    }
+}
+
+fn enum_select(na: &str, en: &EnumMetadata, required: bool) -> String {
+    let options = en
+        .variants
+        .iter()
+        .enumerate()
+        .map(|(i, v)| format!("<option value=\"{}\">{}</option>", i + 1, esc(v)))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let req = if required { " required" } else { "" };
+    format!(
+        "<select{na}{req}>\n{}\n{options}\n</select>",
+        placeholder_option(required)
+    )
+}
+
+/// Select que aponta para outra struct; as opcoes vem da API (data-ref).
+fn ref_select(na: &str, target: &str, required: bool) -> String {
+    let req = if required { " required" } else { "" };
+    format!(
+        "<select{na} data-ref=\"{}\"{req}>\n{}\n</select>",
+        snake_case(target),
+        placeholder_option(required)
+    )
+}
+
+/// Enum de um unico valor com poucas variantes: botoes de escolha (radio).
+/// Se for opcional, ganha o botao "none", ja marcado.
+fn enum_pills(name: &str, id: &str, en: &EnumMetadata, required: bool) -> String {
+    let req = if required { " required" } else { "" };
+    let none = if required {
+        String::new()
+    } else {
+        format!(
+            "<label class=\"pill none\"><input type=\"radio\" name=\"{name}\" value=\"\" checked>\
+             <span>none</span></label>\n"
+        )
+    };
+    let pills = en
+        .variants
+        .iter()
+        .enumerate()
+        .map(|(i, v)| {
+            format!(
+                "<label class=\"pill\"><input type=\"radio\" name=\"{name}\" value=\"{}\"{req}>\
+                 <span>{}</span></label>",
+                i + 1,
+                esc(v)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!(
+        "<div class=\"pills\" role=\"radiogroup\" aria-labelledby=\"{id}_label\">\n{none}{pills}\n</div>"
+    )
+}
 
 fn field_to_html(owner: &str, field: &FieldMetadata) -> String {
+    if let Some(inner) = vec_inner(&strip_option(field.ty)) {
+        return vec_field_to_html(owner, field, &inner);
+    }
+
     let nullable = option_inner(field.ty).is_some();
     let ty = strip_option(field.ty);
-    let name = if find_enum(&ty).is_some() || find_struct(&ty).is_some() {
+    let rust_ty = last_segment(&ty).to_string();
+    let en = find_enum(&ty);
+    let st = find_struct(&ty);
+
+    let name = if en.is_some() || st.is_some() {
         format!("{}_id", field.name)
     } else {
         field.name.to_string()
     };
     let id = format!("{}_{}", snake_case(owner), name);
+    let required = !nullable;
+    let req_attr = if required { " required" } else { "" };
+    let na = format!(" name=\"{name}\" id=\"{id}\"");
 
-    let html = if let Some(e) = find_enum(&ty) {
-        let mut options = String::new();
-
-        for (i, variant) in e.variants.iter().enumerate() {
-            options.push_str(&format!(
-                "<option value=\"{}\">{}</option>\n",
-                i + 1,
-                variant
-            ));
-        }
-
-        format!(
-            "<select name=\"{name}\" id=\"{id}\">\n{options}</select>"
-        )
-    } else if find_struct(&ty).is_some() {
-        format!("<select name=\"{name}\" id=\"{id}\"></select>")
-    } else {
-        let input = match sql_type(&ty) {
-            Some("BOOLEAN") => "checkbox",
-            Some("SMALLINT" | "INTEGER" | "BIGINT"
-                | "NUMERIC(20,0)" | "NUMERIC(39,0)"
-                | "REAL" | "DOUBLE PRECISION") => "number",
-            _ => "text",
+    // (controle, id para o <label for>, intervalo para o badge)
+    let (control, label_for, range): (String, Option<String>, Option<String>) =
+        if let Some(en) = en {
+            if (1..=4).contains(&en.variants.len()) {
+                (enum_pills(&name, &id, en, required), None, None)
+            } else {
+                (enum_select(&na, en, required), Some(id.clone()), None)
+            }
+        } else if let Some(st) = st {
+            (ref_select(&na, st.name, required), Some(id.clone()), None)
+        } else {
+            let (control, range) = scalar_control(&ty, &na, field.name, req_attr);
+            (control, Some(id.clone()), range)
         };
-        let required = if input != "checkbox" && !nullable { " required" } else { "" };
 
-        format!(
-            "<input type=\"{input}\" name=\"{name}\" id=\"{id}\"{required}>"
-        )
+    let is_bool = sql_type(&ty) == Some("BOOLEAN");
+    let req_cls = if required && !is_bool { " req" } else { "" };
+    let label_text = esc(&humanize(field.name));
+
+    let name_el = match &label_for {
+        Some(target) => format!(
+            "<label class=\"label-name{req_cls}\" for=\"{target}\">{label_text}</label>"
+        ),
+        None => format!(
+            "<span class=\"label-name{req_cls}\" id=\"{id}_label\">{label_text}</span>"
+        ),
+    };
+
+    let shown = if nullable {
+        format!("Option<{rust_ty}>")
+    } else {
+        rust_ty.clone()
+    };
+    let badge = match range {
+        Some(r) => format!("{shown} · {r}"),
+        None => shown,
     };
 
     format!(
-        "<label for=\"{id}\">{}</label>\n{html}",
+        "<div class=\"field\">\n<div class=\"label-row\">{name_el}<span class=\"ty\">{}</span></div>\n{control}\n</div>",
+        esc(&badge)
+    )
+}
+
+/// Campo `Vec<T>`:
+/// - `Vec<Enum>`: botoes marcaveis (varios valores), enviados como `{campo}_ids: [1, 2]`
+/// - `Vec<Struct>`: linhas repetiveis com select da API, enviadas como `{campo}_ids: [..]`
+/// - `Vec<escalar>`: linhas repetiveis com o controle do tipo, enviadas como `{campo}: [..]`
+fn vec_field_to_html(owner: &str, field: &FieldMetadata, inner_raw: &str) -> String {
+    let inner = strip_option(inner_raw);
+    let rust_ty = last_segment(&inner).to_string();
+    let en = find_enum(&inner);
+    let st = find_struct(&inner);
+
+    let key = if en.is_some() || st.is_some() {
+        format!("{}_ids", field.name)
+    } else {
+        field.name.to_string()
+    };
+    let id = format!("{}_{}", snake_case(owner), key);
+    let item_na = " class=\"item\"";
+
+    // Onde o JS grava a lista: tabela filha, FK para o pai e coluna do valor
+    // (mesmos nomes que `vec_table_def` usa no SQL).
+    let parent_snake = snake_case(owner);
+    let col = if en.is_some() || st.is_some() { "value_id" } else { "value" };
+    let data = format!(
+        "data-list=\"{key}\" data-child=\"{parent_snake}_{}\" data-fk=\"{parent_snake}_id\" data-col=\"{col}\"",
         field.name
+    );
+
+    let (control, range): (String, Option<String>) = if let Some(en) = en {
+        let chips = en
+            .variants
+            .iter()
+            .enumerate()
+            .map(|(i, v)| {
+                format!(
+                    "<label class=\"pill\"><input type=\"checkbox\" value=\"{}\"><span>{}</span></label>",
+                    i + 1,
+                    esc(v)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        (
+            format!(
+                "<div class=\"pills multi\" {data} role=\"group\" aria-labelledby=\"{id}_label\">\n{chips}\n</div>"
+            ),
+            None,
+        )
+    } else {
+        let (item, range) = if let Some(st) = st {
+            (ref_select(item_na, st.name, true), None)
+        } else {
+            scalar_control(&inner, item_na, field.name, " required")
+        };
+        (
+            format!(
+                "<div class=\"repeat\" {data}>\n<div class=\"rows\"></div>\n\
+                 <template><div class=\"row\">{item}\
+                 <button type=\"button\" class=\"rm\" aria-label=\"Remove\">×</button></div></template>\n\
+                 <button type=\"button\" class=\"add\">+ Add</button>\n</div>"
+            ),
+            range,
+        )
+    };
+
+    let shown = format!("Vec<{rust_ty}>");
+    let badge = match range {
+        Some(r) => format!("{shown} · {r}"),
+        None => shown,
+    };
+
+    format!(
+        "<div class=\"field\">\n<div class=\"label-row\">\
+         <span class=\"label-name\" id=\"{id}_label\">{}</span><span class=\"ty\">{}</span></div>\n{control}\n</div>",
+        esc(&humanize(field.name)),
+        esc(&badge)
     )
 }
