@@ -30,7 +30,24 @@ pub struct Crab {
 }
 
 #[derive(crab_worm)]
-pub struct Nihil {}
+pub struct Car {
+	pub id: u32,
+	pub brand: String,
+	pub year: u16,
+	pub model: String,
+	pub owner: String, 
+}
+
+#[derive(crab_worm)]
+pub struct CPU {
+	pub id: u32,
+	pub manufacturer: String,
+	pub model: String,
+	pub cores: u8,
+	pub threads: u8,
+	pub price: u8,
+	pub release_dat: u16, 
+}
 
 #[derive(crab_worm)]
 pub struct User {

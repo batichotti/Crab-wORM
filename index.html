@@ -278,6 +278,62 @@ button[type=submit]:disabled { opacity: .5; cursor: wait; transform: none; }
 <p>// forms generated from your structs</p>
 </header>
 <main>
+<form data-table="cpu">
+<fieldset>
+<legend>CPU</legend>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="cpu_manufacturer">Manufacturer</label><span class="ty">String</span></div>
+<input type="text" name="manufacturer" id="cpu_manufacturer" required>
+</div>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="cpu_model">Model</label><span class="ty">String</span></div>
+<input type="text" name="model" id="cpu_model" required>
+</div>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="cpu_cores">Cores</label><span class="ty">u8 · 0..=255</span></div>
+<input type="number" name="cores" id="cpu_cores" step="1" min="0" max="255" required>
+</div>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="cpu_threads">Threads</label><span class="ty">u8 · 0..=255</span></div>
+<input type="number" name="threads" id="cpu_threads" step="1" min="0" max="255" required>
+</div>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="cpu_price">Price</label><span class="ty">u8 · 0..=255</span></div>
+<input type="number" name="price" id="cpu_price" step="1" min="0" max="255" required>
+</div>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="cpu_release_dat">Release dat</label><span class="ty">u16 · 0..=65535</span></div>
+<input type="number" name="release_dat" id="cpu_release_dat" step="1" min="0" max="65535" required>
+</div>
+</fieldset>
+<button type="submit">Save</button>
+<output class="status" role="status"></output>
+</form>
+
+<form data-table="car">
+<fieldset>
+<legend>Car</legend>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="car_brand">Brand</label><span class="ty">String</span></div>
+<input type="text" name="brand" id="car_brand" required>
+</div>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="car_year">Year</label><span class="ty">u16 · 0..=65535</span></div>
+<input type="number" name="year" id="car_year" step="1" min="0" max="65535" required>
+</div>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="car_model">Model</label><span class="ty">String</span></div>
+<input type="text" name="model" id="car_model" required>
+</div>
+<div class="field">
+<div class="label-row"><label class="label-name req" for="car_owner">Owner</label><span class="ty">String</span></div>
+<input type="text" name="owner" id="car_owner" required>
+</div>
+</fieldset>
+<button type="submit">Save</button>
+<output class="status" role="status"></output>
+</form>
+
 <form data-table="claw">
 <fieldset>
 <legend>Claw</legend>
