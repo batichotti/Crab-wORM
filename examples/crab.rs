@@ -42,5 +42,5 @@ pub struct User {
 }
 
 fn main() {
-	crab_worm::parasitize();
+	let _ = crab_worm::parasitize();
 }
