@@ -41,6 +41,7 @@ pub struct User {
 	pub is_active: bool,
 }
 
-fn main() {
-	crab_worm::parasitize();
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+	crab_worm_core::parasitize()?;
+	Ok(())
 }
