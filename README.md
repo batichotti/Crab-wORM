@@ -1,6 +1,6 @@
 # Crab-wORM
 
-Crab-wORM generates a **PostgreSQL schema** and **HTML forms** from your Rust `structs` and `enums`. You describe your types once, with `#[derive(crab_worm)]`.
+Crab-wORM generates a **PostgreSQL schema** and **HTML forms** from your Rust `structs` and `enums`. You describe your types once through the `crab_worm` interface, using `#[derive(crab_worm)]`.
 
 > Leia em português: [README.pt.md](README.pt.md)
 
@@ -30,27 +30,15 @@ pub struct Crab {
 }
 ```
 
-From that you get:
+## What Crab-wORM provides
 
-- `generate_sql()`: the `CREATE TABLE` statements for every type, already in dependency order.
-- `generate_html()`: a complete page (CSS + forms + JS) that saves data through [PostgREST](https://postgrest.org).
+Crab-wORM is a derive-based library for applications that need a database-backed form without maintaining a separate schema and form definition. Add `#[derive(crab_worm)]` to the Rust types that represent your domain and use the `crab_worm` interface to generate the artifacts your application needs:
 
-## How it works
+- PostgreSQL tables, relationships, and list tables;
+- an HTML form for creating records;
+- controls for scalar values, optional values, enums, references, and lists.
 
-`#[derive(crab_worm)]` registers each type's metadata (name, fields, types) in a global collection using [`inventory`](https://crates.io/crates/inventory). The generators walk that collection and produce SQL and HTML.
-
-```
-Crab-wORM/
-├── core/      # crab-worm-core: metadata (meta.rs) and generators (factory.rs)
-├── macros/    # crab-worm-macros: the #[derive(crab_worm)] macro
-├── examples/  # runnable examples (crab.rs)
-└── docker-compose.yml   # Postgres 17 + PostgREST
-```
-
-| Module | What it does |
-|---|---|
-| `meta.rs` | `FieldMetadata`, `StructMetadata`, `EnumMetadata`, `TypeMetadata`, and the `inventory` registration |
-| `factory.rs` | `to_sql()`, `to_html()`, `generate_sql()` and `generate_html()` |
+The generated HTML uses a PostgREST API, so the library can be used with an existing PostgreSQL/PostgREST setup or with the included Docker Compose example.
 
 ## Getting started
 
@@ -73,20 +61,38 @@ docker compose ps        # db should be "healthy"
 
 Postgres listens on `127.0.0.1:5432` and PostgREST on `127.0.0.1:3000`.
 
-### 2. Generate the schema and the page
+### 2. Define your domain types
+
+Use regular Rust structs and enums. Derive `crab_worm` for every type that should be available to the generators:
 
 ```rust
-fn main() {
-    std::fs::write("schema.sql", crab_worm_core::factory::generate_sql()).unwrap();
-    std::fs::write("index.html", crab_worm_core::factory::generate_html()).unwrap();
+#[derive(crab_worm)]
+pub enum Status {
+    Draft,
+    Published,
+}
+
+#[derive(crab_worm)]
+pub struct Article {
+    pub title: String,
+    pub status: Status,
+    pub tags: Vec<String>,
 }
 ```
+
+Enums become reference tables, struct fields become columns or foreign keys, and `Vec<T>` fields become child tables.
+
+### 3. Generate the schema and the page
+
+The `crab_worm` interface discovers the types that derive `crab_worm` and
+generates the schema and HTML automatically. The user does not need to create
+an example or call internal generators by hand.
 
 ```bash
 cargo run --example crab
 ```
 
-### 3. Apply the schema
+### 4. Apply the schema
 
 ```bash
 docker exec -i crab-worm-db psql -U crab -d crab_worm -v ON_ERROR_STOP=1 < schema.sql
@@ -95,9 +101,11 @@ docker exec crab-worm-db psql -U crab -d crab_worm -c "NOTIFY pgrst, 'reload sch
 
 The `NOTIFY` makes PostgREST reload its table cache. Without it, new tables return `404 PGRST205`. If the `NOTIFY` has no effect, `docker restart crab-worm-api` does the job.
 
-### 4. Open `index.html` in your browser
+### 5. Open `index.html` in your browser
 
 Fill in a form and click **Save**.
+
+The generated page sends the main record to `POST /{table}` and then saves list values in their child tables. Configure the generated `API_URL` if your PostgREST server is not running at `http://localhost:3000`.
 
 ## Type mapping
 

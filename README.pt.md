@@ -1,6 +1,6 @@
 # Crab-wORM
 
-O Crab-wORM gera um **schema PostgreSQL** e **formulários HTML** a partir das suas `structs` e `enums` em Rust. Você descreve os tipos uma vez, com `#[derive(crab_worm)]`.
+O Crab-wORM gera um **esquema PostgreSQL** e **formulários HTML** a partir das suas `structs` e `enums` em Rust. Você descreve seus tipos uma única vez por meio da interface `crab_worm`, usando `#[derive(crab_worm)]`.
 
 ```rust
 use crab_worm::crab_worm;
@@ -22,39 +22,27 @@ pub struct Crab {
     pub name: String,
     pub age_years: u8,
     pub is_alive: bool,
-    pub worm: Worm,             // enum -> FK para a tabela "worm"
-    pub nicknames: Vec<String>, // lista -> tabela filha "crab_nicknames"
-    pub claws: Vec<Claw>,       // lista de structs -> tabela filha "crab_claws"
+    pub worm: Worm,                 // enum -> FK para a tabela "worm"
+    pub nicknames: Vec<String>,     // lista -> tabela filha "crab_nicknames"
+    pub claws: Vec<Claw>,           // lista de structs -> tabela filha "crab_claws"
 }
 ```
 
-A partir disso você obtém:
+## O que o Crab-wORM oferece
 
-- `generate_sql()`: o `CREATE TABLE` de todos os tipos, já na ordem certa de dependência.
-- `generate_html()`: uma página completa (CSS + formulários + JS) que grava os dados via [PostgREST](https://postgrest.org).
+O Crab-wORM é uma biblioteca baseada em derive para aplicações que precisam de formulários integrados a um banco de dados sem manter definições separadas para o esquema e os formulários. Adicione `#[derive(crab_worm)]` aos tipos Rust que representam seu domínio e use a interface `crab_worm` para gerar os artefatos necessários à sua aplicação:
 
-## Como funciona
+- Tabelas, relacionamentos e tabelas para listas no PostgreSQL;
+- Um formulário HTML para criar registros;
+- Controles para valores escalares, valores opcionais, enums, referências e listas.
 
-O `#[derive(crab_worm)]` registra os metadados de cada tipo (nome, campos, tipos) numa coleção global usando [`inventory`](https://crates.io/crates/inventory). Os geradores percorrem essa coleção e produzem SQL e HTML.
+O HTML gerado utiliza uma API PostgREST, permitindo que a biblioteca seja usada com uma configuração PostgreSQL/PostgREST existente ou com o exemplo incluído de Docker Compose.
 
-```
-Crab-wORM/
-├── core/      # crab-worm-core: metadados (meta.rs) e geradores (factory.rs)
-├── macros/    # crab-worm-macros: o derive #[derive(crab_worm)]
-├── examples/  # exemplos executáveis (crab.rs)
-└── docker-compose.yml   # Postgres 17 + PostgREST
-```
+## Primeiros passos
 
-| Módulo | O que faz |
-|---|---|
-| `meta.rs` | `FieldMetadata`, `StructMetadata`, `EnumMetadata`, `TypeMetadata` e o registro no `inventory` |
-| `factory.rs` | `to_sql()`, `to_html()`, `generate_sql()` e `generate_html()` |
+### 1. Inicie o banco de dados e a API
 
-## Começando
-
-### 1. Suba o banco e a API
-
-Crie um `.env` na raiz:
+Crie um arquivo `.env` na raiz do projeto:
 
 ```dotenv
 POSTGRES_USER=crab
@@ -62,40 +50,62 @@ POSTGRES_PASSWORD=worm
 POSTGRES_DB=crab_worm
 ```
 
-E suba os containers:
+Em seguida, inicie os contêineres:
 
 ```bash
 docker compose up -d
-docker compose ps        # o db deve estar "healthy"
+docker compose ps        # o banco de dados deve estar "healthy"
 ```
 
-O Postgres fica em `127.0.0.1:5432` e o PostgREST em `127.0.0.1:3000`.
+O PostgreSQL fica disponível em `127.0.0.1:5432` e o PostgREST em `127.0.0.1:3000`.
 
-### 2. Gere o schema e a página
+### 2. Defina os tipos do seu domínio
+
+Use structs e enums comuns do Rust. Derive `crab_worm` para cada tipo que deve estar disponível para os geradores:
 
 ```rust
-fn main() {
-    std::fs::write("schema.sql", crab_worm_core::factory::generate_sql()).unwrap();
-    std::fs::write("index.html", crab_worm_core::factory::generate_html()).unwrap();
+#[derive(crab_worm)]
+pub enum Status {
+    Draft,
+    Published,
+}
+
+#[derive(crab_worm)]
+pub struct Article {
+    pub title: String,
+    pub status: Status,
+    pub tags: Vec<String>,
 }
 ```
+
+Os enums se tornam tabelas de referência, os campos das structs se tornam colunas ou chaves estrangeiras, e os campos `Vec<T>` se tornam tabelas filhas.
+
+### 3. Gere o esquema e a página
+
+A interface `crab_worm` identifica os tipos que derivam `crab_worm` e gera automaticamente o esquema e o HTML. O usuário não precisa criar um exemplo nem chamar os geradores internos manualmente.
 
 ```bash
 cargo run --example crab
 ```
 
-### 3. Aplique o schema
+### 4. Aplique o esquema
 
 ```bash
 docker exec -i crab-worm-db psql -U crab -d crab_worm -v ON_ERROR_STOP=1 < schema.sql
 docker exec crab-worm-db psql -U crab -d crab_worm -c "NOTIFY pgrst, 'reload schema'"
 ```
 
-O `NOTIFY` faz o PostgREST recarregar o cache de tabelas. Sem ele, as tabelas novas retornam `404 PGRST205`. Se o `NOTIFY` não surtir efeito, `docker restart crab-worm-api` resolve.
+O comando `NOTIFY` faz o PostgREST recarregar o cache de tabelas. Sem isso, novas tabelas retornam `404 PGRST205`. Se o `NOTIFY` não surtir efeito, reiniciar a API resolve:
 
-### 4. Abra o `index.html` no navegador
+```bash
+docker restart crab-worm-api
+```
 
-Preencha um formulário e clique em **Save**.
+### 5. Abra o `index.html` no navegador
+
+Preencha um formulário e clique em **Salvar**.
+
+A página gerada envia o registro principal para `POST /{table}` e, em seguida, salva os valores das listas nas respectivas tabelas filhas. Configure o `API_URL` gerado caso seu servidor PostgREST não esteja sendo executado em `http://localhost:3000`.
 
 ## Mapeamento de tipos
 
@@ -113,58 +123,58 @@ Preencha um formulário e clique em **Save**.
 | `f64` | `DOUBLE PRECISION` |
 | `String` | `TEXT` |
 | `char` | `CHAR(1)` |
-| `Option<T>` | a coluna de `T`, sem `NOT NULL` |
-| `enum` | `{campo}_id INTEGER REFERENCES "{enum}"("id")` |
-| `struct` | `{campo}_id INTEGER REFERENCES "{struct}"("id")` |
-| `Vec<T>` | tabela filha `{pai}_{campo}` |
+| `Option<T>` | A coluna correspondente a `T`, sem `NOT NULL` |
+| `enum` | `{field}_id INTEGER REFERENCES "{enum}"("id")` |
+| `struct` | `{field}_id INTEGER REFERENCES "{struct}"("id")` |
+| `Vec<T>` | Tabela filha `{parent}_{field}` |
 
-Detalhes do schema:
+Detalhes do esquema:
 
-- Toda tabela de struct ganha `"id" INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY`. Um campo chamado `id` na struct é ignorado, porque a chave primária já é gerada.
-- Os identificadores vão entre aspas e em `snake_case` (`User` vira `"user"`), o que evita palavras reservadas. Na hora de consultar no `psql`, use `SELECT * FROM "user";`.
-- Cada enum vira uma tabela `("id", "name")` populada com as variantes. O id é a **posição da variante, começando em 1**.
-- Um `Vec<T>` vira `{pai}_{campo}("id", "{pai}_id", "position", "value")`, com `ON DELETE CASCADE` no pai. Para enums e structs a coluna do valor é `value_id` (FK). O `position` guarda a ordem da lista.
-- As tabelas saem em ordem de dependência (enums primeiro, depois as structs que dependem delas), então o schema funciona em Postgres sem erro de FK.
+- Cada tabela de struct recebe `"id" INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY`. Um campo da struct chamado `id` é ignorado, pois a chave primária já é gerada automaticamente.
+- Os identificadores são colocados entre aspas e usam `snake_case` (`User` se torna `"user"`), evitando conflitos com palavras reservadas. Ao consultar pelo `psql`, use `SELECT * FROM "user";`.
+- Cada enum se torna uma tabela `("id", "name")`, preenchida com suas variantes. O ID corresponde à **posição da variante, começando em 1**.
+- Um `Vec<T>` se torna `{parent}_{field}("id", "{parent}_id", "position", "value")`, com `ON DELETE CASCADE` na referência ao registro pai. Para enums e structs, a coluna de valor é `value_id` (uma chave estrangeira). A coluna `position` armazena a ordem dos elementos da lista.
+- As tabelas são geradas na ordem de dependência (primeiro os enums e depois as structs que dependem deles), permitindo aplicar o esquema no PostgreSQL sem erros de chaves estrangeiras.
 
 ### Rust para HTML
 
 | Tipo | Controle |
 |---|---|
-| `String` | texto; o nome do campo ajusta o tipo (`email`, `password`, `url`, `tel`) e `description`/`comment`/`notes` viram `textarea` |
-| inteiros | `number` com `min`/`max`/`step` do tipo (`u8` vai de 0 a 255) |
-| `f32`, `f64` | `number` com `step="any"` |
-| `bool` | interruptor |
-| `char` | texto com `maxlength="1"` |
-| enum (até 4 variantes) | botões de escolha |
-| enum (mais de 4) | `select` |
-| struct | `select` preenchido com `GET /{tabela}` |
-| `Option<T>` | campo opcional (sem `*`); enums ganham o botão "none" |
-| `Vec<Enum>` | botões marcáveis, vários valores |
-| `Vec<Struct>` / `Vec<escalar>` | linhas repetíveis com botões `+ Add` e `×` |
+| `String` | Campo de texto; o nome do campo refina o tipo (`email`, `password`, `url`, `tel`), e os campos `description`, `comment` e `notes` se tornam um `textarea` |
+| Inteiros | Campo `number` com `min`, `max` e `step` definidos pelo tipo (`u8` varia de 0 a 255) |
+| `f32`, `f64` | Campo `number` com `step="any"` |
+| `bool` | Interruptor de alternância |
+| `char` | Campo de texto com `maxlength="1"` |
+| `enum` (até 4 variantes) | Botões de seleção |
+| `enum` (mais de 4 variantes) | Lista suspensa `select` |
+| `struct` | Lista suspensa `select` preenchida por `GET /{table}` |
+| `Option<T>` | Campo opcional (sem `*`); enums recebem um botão "nenhum" |
+| `Vec<Enum>` | Botões selecionáveis que permitem múltiplos valores |
+| `Vec<Struct>` / `Vec<scalar>` | Linhas repetíveis com botões `+ Add` e `×` |
 
-Cada enum também aparece como cartão de referência no fim da página, com as variantes e seus ids.
+Cada enum também aparece como um cartão de referência na parte inferior da página, listando suas variantes e seus IDs.
 
-## Como o formulário grava
+## Como o formulário salva os dados
 
-O formulário salva em dois passos, porque listas vivem em tabelas separadas:
+O formulário salva os dados em duas etapas, pois as listas ficam em tabelas separadas:
 
-1. `POST /crab` com os campos escalares. O PostgREST devolve a linha criada, incluindo o `id`.
-2. Para cada `Vec`, um `POST` em lote na tabela filha (`/crab_nicknames`, `/crab_claws`...) com `crab_id`, `position` e o valor.
+1. `POST /crab` com os campos escalares. O PostgREST retorna a linha criada, incluindo seu `id`.
+2. Para cada `Vec`, uma única requisição `POST` em lote é enviada à tabela filha (`/crab_nicknames`, `/crab_claws` etc.), com `crab_id`, `position` e o valor.
 
-Se algum passo das listas falhar, o JS apaga o registro principal (as filhas somem pelo `ON DELETE CASCADE`).
+Se alguma etapa de salvamento de listas falhar, o JavaScript exclui o registro principal (as linhas filhas também são removidas por meio de `ON DELETE CASCADE`).
 
-A URL da API fica na constante `API_URL` no início do script gerado (`http://localhost:3000`). Para o formulário funcionar, o endpoint `GET /{tabela}` precisa devolver `[{ "id": 1, "name": "..." }]`, que é o que o PostgREST faz.
+A URL da API é definida pela constante `API_URL`, no início do script gerado (`http://localhost:3000`). Para que o formulário funcione, o endpoint `GET /{table}` deve retornar dados no formato `[{ "id": 1, "name": "..." }]`, como faz o PostgREST.
 
 ## Solução de problemas
 
 | Sintoma | Causa provável |
 |---|---|
-| `503 PGRST002` | A API não consegue conectar no banco. Veja `docker logs crab-worm-api`; o host em `PGRST_DB_URI` deve ser o nome do serviço (`db`), não `127.0.0.1` |
-| `404 PGRST205` (tabela não encontrada) | O schema não foi aplicado, ou o cache está velho. Rode o `NOTIFY` ou reinicie a API |
-| `400 PGRST204` (coluna não encontrada) | O HTML foi gerado com uma versão antiga do gerador. Gere de novo e recarregue com Ctrl+F5 |
-| `psql: Connection refused` no host | A porta 5432 não está publicada no container do banco. Confira o `ports:` do compose |
-| Senha ou banco ignorados | O Postgres só aplica `POSTGRES_*` na primeira inicialização do volume. Use `docker compose down -v` para recomeçar (apaga os dados) |
+| `503 PGRST002` | A API não consegue se conectar ao banco de dados. Verifique `docker logs crab-worm-api`; o host em `PGRST_DB_URI` deve ser o nome do serviço (`db`), e não `127.0.0.1`. |
+| `404 PGRST205` (tabela não encontrada) | O esquema não foi aplicado ou o cache está desatualizado. Execute o `NOTIFY` ou reinicie a API. |
+| `400 PGRST204` (coluna não encontrada) | O HTML foi gerado com uma versão antiga do gerador. Gere-o novamente e atualize a página com Ctrl+F5. |
+| `psql: Connection refused` no host | A porta 5432 não está publicada no contêiner do banco de dados. Verifique a entrada `ports:` no arquivo Compose. |
+| Senha ou banco de dados ignorados | O PostgreSQL só aplica as variáveis `POSTGRES_*` na primeira inicialização do volume. Use `docker compose down -v` para recomeçar (isso apaga os dados). |
 
 ## Licença
 
-MIT. Veja [LICENSE](LICENSE).
+MIT. Consulte o arquivo [LICENSE](LICENSE).
