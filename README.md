@@ -2,7 +2,7 @@
 
 Crab-wORM generates a **PostgreSQL schema** and **HTML forms** from your Rust `structs` and `enums`. You describe your types once, with `#[derive(crab_worm)]`.
 
-> Leia em português: [README.pt-BR.md](README.pt-BR.md)
+> Leia em português: [README.pt.md](README.pt.md)
 
 ```rust
 use crab_worm::crab_worm;
